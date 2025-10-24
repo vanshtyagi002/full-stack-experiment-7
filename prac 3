@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Real-Time Chat</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+      #root {
+        width: 400px;
+        margin: 50px auto;
+        border: 1px solid black;
+        padding: 15px;
+        border-radius: 5px;
+      }
+      input {
+        padding: 5px;
+      }
+      button {
+        padding: 5px 10px;
+        background: blue;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const socket = io();
+
+      function App() {
+        const [name, setName] = React.useState("");
+        const [message, setMessage] = React.useState("");
+        const [messages, setMessages] = React.useState([]);
+
+        React.useEffect(() => {
+          socket.on("receive_message", (data) => {
+            setMessages((prev) => [...prev, data]);
+          });
+          return () => socket.off("receive_message");
+        }, []);
+
+        const sendMessage = () => {
+          if (name && message) {
+            const msg = {
+              name,
+              message,
+              time: new Date().toLocaleTimeString(),
+            };
+            socket.emit("send_message", msg);
+            setMessage("");
+          }
+        };
+
+        return (
+          <div>
+            <h2 style={{ textAlign: "center" }}>Real-Time Chat</h2>
+
+            <input
+              type="text"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={{ width: "100%", marginBottom: "10px" }}
+            />
+
+            <div
+              style={{
+                border: "1px solid #ccc",
+                height: "200px",
+                overflowY: "scroll",
+                marginBottom: "10px",
+                padding: "5px",
+              }}
+            >
+              {messages.map((msg, index) => (
+                <div key={index}>
+                  <b>{msg.name}</b> [{msg.time}]: {msg.message}
+                </div>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              placeholder="Type your message..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              style={{ width: "75%" }}
+            />
+            <button onClick={sendMessage} style={{ width: "20%", marginLeft: "5%" }}>
+              Send
+            </button>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
+// server.js
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const path = require("path");
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+// Serve frontend from the same server
+app.use(express.static(path.join(__dirname, "public")));
+
+// Handle socket connections
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("send_message", (data) => {
+    io.emit("receive_message", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+// Start the server
+const PORT = 5000;
+server.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
